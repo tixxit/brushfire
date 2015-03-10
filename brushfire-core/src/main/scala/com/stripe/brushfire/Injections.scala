@@ -76,7 +76,7 @@ object JsonInjections {
     pInj: JsonNodeInjection[T],
     vInj: JsonNodeInjection[V],
     mon: Monoid[T],
-    ord: Ordering[V] = null): Injection[Tree[K, V, T], String] = {
+    ord: Ordering[V] = null): JsonNodeInjection[Tree[K, V, T]] = {
 
     implicit def predicateJsonNodeInjection: JsonNodeInjection[Predicate[V]] =
       new AbstractJsonNodeInjection[Predicate[V]] {
@@ -172,14 +172,15 @@ object JsonInjections {
         }
       }
 
-    implicit val treeJsonNodeInjection: JsonNodeInjection[Tree[K, V, T]] =
-      new AbstractJsonNodeInjection[Tree[K, V, T]] {
-        def apply(tree: Tree[K, V, T]) = toJsonNode(tree.root)
-        override def invert(n: JsonNode) = fromJsonNode[Node[K, V, T]](n).map { root => Tree(root) }
-      }
-
-    JsonInjection.toString[Tree[K, V, T]]
+    new AbstractJsonNodeInjection[Tree[K, V, T]] {
+      def apply(tree: Tree[K, V, T]) = toJsonNode(tree.root)
+      override def invert(n: JsonNode) = fromJsonNode[Node[K, V, T]](n).map { root => Tree(root) }
+    }
   }
+
+
+  implicit def treeJsonStringInjection[K, V, T](implicit jsonInj: JsonNodeInjection[Tree[K, V, T]]): Injection[Tree[K, V, T], String] =
+    JsonInjection.toString[Tree[K, V, T]]
 }
 
 object KryoInjections {

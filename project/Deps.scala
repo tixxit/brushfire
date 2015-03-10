@@ -15,6 +15,8 @@ object Deps {
     val chill = "0.5.2"
 
     val finatra = "1.6.0"
+    val storehaus = "0.10.0"
+    val aws = "1.9.23"
   }
 
   val algebirdCore   = "com.twitter"         %% "algebird-core"      % V.algebird
@@ -28,4 +30,6 @@ object Deps {
   val scaldingCore   = "com.twitter"         %% "scalding-core"      % V.scalding
 
   val finatra        = "com.twitter"         %% "finatra"            % V.finatra
+  val s3             = "com.amazonaws"        % "aws-java-sdk-s3"    % V.aws
+  val storehaus      = "com.twitter"         %% "storehaus-core"     % V.storehaus
 }
