@@ -20,7 +20,7 @@ import JsonNodeImplicits._
  * @param extract the function to extract features from a parameter map
  */
 class ForestModelInjections[K, V, T, P](
-  extract: Map[String, String] => Try[Map[K, V]],
+  extractor: FeatureExtractor[K, V],
   voter: Voter[T, Future[P]]) {
 
   /**
@@ -55,7 +55,7 @@ class ForestModelInjections[K, V, T, P](
       treesNode    <- node.tryField("trees")
       trees        <- parseTrees(treesNode)
     } yield {
-      ForestModel(trees, voter, metadata, extract)
+      ForestModel(trees, voter, metadata, extractor.forForest(trees.values))
     }
 
     private def parseTrees(node: JsonNode): Try[Map[Int, Tree[K, V, T]]] =
@@ -87,7 +87,7 @@ class ForestModelInjections[K, V, T, P](
                  }.toMap
                }
     } yield {
-      ForestModel(trees, voter, ModelMetadata(None), extract)
+      ForestModel(trees, voter, ModelMetadata(None), extractor.forForest(trees.values))
     }
   }
 }

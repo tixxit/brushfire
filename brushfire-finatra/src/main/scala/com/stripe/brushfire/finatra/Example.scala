@@ -14,9 +14,9 @@ object Main {
   import JsonInjections._
 
   val forestModelType: ModelType[JsonNode] =
-    ModelType.scaldingForest(
-      params => Try(params.mapValues(_.toDouble)),
-      SoftVoter[String, Long].map(Future.value(_)))
+    ModelType.brushfireBuilder
+      .mapValues[Double]
+      .json()
 
   val modelStore = JsonModelStore(
     new ConcurrentHashMapStore,
