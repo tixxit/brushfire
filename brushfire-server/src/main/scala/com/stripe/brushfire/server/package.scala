@@ -6,9 +6,7 @@ import scala.collection.generic.CanBuildFrom
 import scala.util.{ Try => ScalaTry, Success, Failure }
 import com.twitter.util.{ Try => TwitterTry, Return, Throw }
 
-package object finatra {
-
-  // Sigh.
+package object server {
 
   implicit class ScalaTryConverters[A](val scalaTry: ScalaTry[A]) extends AnyVal {
     def toTwitterTry: TwitterTry[A] = scalaTry match {

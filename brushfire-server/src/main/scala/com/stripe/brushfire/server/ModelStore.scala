@@ -1,5 +1,5 @@
 package com.stripe.brushfire
-package finatra
+package server
 
 import scala.collection.concurrent.TrieMap
 import scala.util.{ Try, Success, Failure }

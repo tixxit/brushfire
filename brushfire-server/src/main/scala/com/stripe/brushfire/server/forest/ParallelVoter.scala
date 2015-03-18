@@ -1,5 +1,6 @@
 package com.stripe.brushfire
-package finatra
+package server
+package forest
 
 import com.twitter.util.{ Future, FuturePool }
 

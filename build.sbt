@@ -17,7 +17,7 @@ maxErrors in ThisBuild := 8
 
 lazy val root = project.
   in(file(".")).
-  aggregate(brushfireCore, brushfireScalding, brushfireFinatra).
+  aggregate(brushfireCore, brushfireScalding, brushfireServer).
   settings(unidocSettings: _*)
 
 lazy val brushfireCore = project.
@@ -27,6 +27,6 @@ lazy val brushfireScalding = project.
   in(file("brushfire-scalding")).
   dependsOn(brushfireCore)
 
-lazy val brushfireFinatra = project.
-  in(file("brushfire-finatra")).
+lazy val brushfireServer = project.
+  in(file("brushfire-server")).
   dependsOn(brushfireCore)

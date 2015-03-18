@@ -1,4 +1,5 @@
 package com.stripe.brushfire
+package server
 package finatra
 
 import scala.collection.concurrent.TrieMap

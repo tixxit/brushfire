@@ -1,5 +1,5 @@
 package com.stripe.brushfire
-package finatra
+package server
 
 import scala.util.Try
 
@@ -10,17 +10,16 @@ import com.twitter.util.{ Future, Await }
 
 import org.codehaus.jackson.JsonNode
 
+import com.stripe.brushfire.server.finatra.ModelController
+
 object Main {
   import JsonInjections._
 
-  val forestModelType: ModelType[JsonNode] =
-    ModelType.brushfireBuilder
-      .mapValues[Double]
-      .json()
-
   val modelStore = JsonModelStore(
     new ConcurrentHashMapStore,
-    Map("forest" -> forestModelType))
+    Map(
+      "simple" -> ModelType.forestBuilder.mapValues[Double].json(),
+      "dispatched" -> ModelType.forestBuilder.dispatched[Long, String, Double, Boolean].json()))
 
   def main(args: Array[String]) {
     val server = new FinatraServer
