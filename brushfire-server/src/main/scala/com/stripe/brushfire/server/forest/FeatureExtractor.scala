@@ -19,11 +19,16 @@ trait FeatureExtractor[K, V] { self =>
    * forest to determine which [[Dispatched]] sub-type each feature is, so the
    * parser for each parameter value depends upon the key it is associated
    * with.
+   *
+   * @param trees the forest this extractor will be used for
+   * @return a function to extract a feature vector from a parameter map
    */
   def forForest[T](trees: => Iterable[Tree[K, V, T]]): Map[String, String] => Try[Map[K, V]]
 
-  /** Map the keys in the extracted map using the function `f`. */
-  def mapKeys[K1](implicit inj: Injection[K1, K]): FeatureExtractor[K1, V] =
+  /**
+   * Map the keys in the extracted map using an [[Injection]] from `K1` to `K`.
+   */
+  def mapKeys[K1](onFailure: OnFailure = OnFailure.Default)(implicit inj: Injection[K1, K]): FeatureExtractor[K1, V] =
     new FeatureExtractor[K1, V] {
       def forForest[T](trees: => Iterable[Tree[K1, V, T]]): Map[String, String] => Try[Map[K1, V]] = {
         val f = self.forForest(trees.map(_.mapKeys(inj(_))))
@@ -31,22 +36,34 @@ trait FeatureExtractor[K, V] { self =>
         { params =>
           for {
             row <- f(params)
-            kvs <- Try.sequence(row.map { case (k, v) => inj.invert(k).map(_ -> v) })
+            kvs <- Try.sequence(for {
+                     (k, v) <- row
+                     k1     <- onFailure(inj.invert(k))
+                   } yield {
+                     k1.map(_ -> v)
+                   })
           } yield kvs.toMap
         }
       }
     }
 
-  /** Map the values in the extracted map using the function `f`. */
-  def mapValues[V1](implicit inj: Injection[V1, V], ord: Ordering[V]): FeatureExtractor[K, V1] = 
+  /**
+    * Map the values in the extracted map using an injection from `V1` to `V`.
+    */
+  def mapValues[V1](onFailure: OnFailure = OnFailure.Default)(implicit inj: Injection[V1, V], ord: Ordering[V]): FeatureExtractor[K, V1] = 
     new FeatureExtractor[K, V1] {
       def forForest[T](trees: => Iterable[Tree[K, V1, T]]): Map[String, String] => Try[Map[K, V1]] = {
         val f = self.forForest(trees.map(_.mapPredicates(inj(_))))
 
         { params =>
           for {
-            row    <- f(params)
-            kvs    <- Try.sequence(row.map { case (k, v) => inj.invert(v).map(k -> _) })
+            row <- f(params)
+            kvs <- Try.sequence(for {
+                     (k, v) <- row
+                     v1     <- onFailure(inj.invert(v))
+                   } yield {
+                     v1.map(k -> _)
+                   })
           } yield kvs.toMap
         }
       }
@@ -58,7 +75,14 @@ object IdentityFeatureExtractor extends FeatureExtractor[String, String] {
     scala.util.Success(_)
 }
 
-class DispatchedFeatureExtractor[K, A, B, C, D, V](prev: FeatureExtractor[K, V])(implicit
+/**
+ * A [[FeatureExtractor]] for [[Dispatched]] types. This uses the forest to
+ * determine the specific dispatched type of each feature, then uses this to
+ * map parameter requests using the appropriate injection for each feature.
+ *
+ * @param prev the [[FeatureExtractor]] to first apply to a parameter map
+ */
+class DispatchedFeatureExtractor[K, A, B, C, D, V](prev: FeatureExtractor[K, V], onFailure: OnFailure = OnFailure.Default)(implicit
   injA: Injection[A, V],
   injB: Injection[B, V],
   injC: Injection[C, V],
@@ -115,6 +139,10 @@ class DispatchedFeatureExtractor[K, A, B, C, D, V](prev: FeatureExtractor[K, V])
       collect(tree.root, ps)
     }
 
+    // This is kind of bad, since this is definitely not an injective mapping.
+    // We would lose too much information in the tree to do many useful things.
+    // The hope is that this `prev` doesn't ever actually evaluate the trees,
+    // or at least doesn't inspect the predicates.
     val initExtractor = prev.forForest(trees.map(_.mapPredicates {
       case Ordinal(a) => injA(a)
       case Nominal(b) => injB(b)
@@ -122,14 +150,17 @@ class DispatchedFeatureExtractor[K, A, B, C, D, V](prev: FeatureExtractor[K, V])
       case Sparse(d) => injD(d)
     }))
 
-    def parseDispatched(row: Map[K, V]): Map[K, Dispatched[A, B, C, D]] = for {
-      (k, parser) <- parsers
-      value       <- row.get(k)
-      dispatched  <- parser(value).toOption // Treating errors as missing values!
-    } yield {
-      k -> dispatched
-    }
+    // This uses the parsers map as the source, so we remove all features that
+    // aren't found in the tree.
+    def parseDispatched(row: Map[K, V]): Try[Map[K, Dispatched[A, B, C, D]]] =
+      Try.sequence(for {
+        (k, parser) <- parsers
+        value       <- row.get(k)
+        dispatched  <- onFailure(parser(value))
+      } yield {
+        dispatched.map(k -> _)
+      })(collection.breakOut)
 
-    { params => initExtractor(params).map(parseDispatched) }
+    { params => initExtractor(params).flatMap(parseDispatched) }
   }
 }

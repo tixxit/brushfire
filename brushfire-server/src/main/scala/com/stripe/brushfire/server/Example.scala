@@ -18,8 +18,8 @@ object Main {
   val modelStore = JsonModelStore(
     new ConcurrentHashMapStore,
     Map(
-      "simple" -> ModelType.forestBuilder.mapValues[Double].json(),
-      "dispatched" -> ModelType.forestBuilder.dispatched[Long, String, Double, Boolean].json()))
+      "simple" -> ModelType.forestBuilder.mapValues[Double](OnFailure.Fail).json(),
+      "dispatched" -> ModelType.forestBuilder.dispatched[Long, String, Double, Boolean](OnFailure.Drop).json()))
 
   def main(args: Array[String]) {
     val server = new FinatraServer

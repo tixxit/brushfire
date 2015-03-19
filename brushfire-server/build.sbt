@@ -8,6 +8,8 @@ libraryDependencies ++= Seq(
   Deps.storehaus
 )
 
+fork in run := true
+
 Publish.settings
 
 MakeJar.settings

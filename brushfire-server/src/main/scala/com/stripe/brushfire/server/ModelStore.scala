@@ -20,7 +20,8 @@ import JsonNodeImplicits._
 trait ModelStore[A] extends ReadableStore[String, Model[A]] {
 
   /**
-   * Deserialize and add a model to the store.
+   * Deserialize and add a model to the store, specifying the expected model
+   * type.
    *
    * @param name      the key to associate the value with
    * @param modelType the name of the [[ModelType]] to treat the model as
@@ -28,6 +29,18 @@ trait ModelStore[A] extends ReadableStore[String, Model[A]] {
    * @return the deserialized model stored, if successful
    */
   def put(name: String, modelType: String, data: Array[Byte]): Future[Model[A]]
+
+  /**
+   * Deserialize and add a model to the store. Note that a model store may
+   * require a model type in order to be able to deserialize the model
+   * correctly. If that's the case, this will fail with an
+   * `InvalidModelException`.
+   *
+   * @param name      the key to associate the value with
+   * @param data      serialized version of the model
+   * @return the deserialized model stored, if successful
+   */
+  def put(name: String, data: Array[Byte]): Future[Model[A]]
 }
 
 object ModelStore {
@@ -53,24 +66,54 @@ case class JsonModelStore(
   modelTypes: Map[String, ModelType[JsonNode]]
 ) extends ModelStore[JsonNode] {
 
+  private def tryParse(modelType: ModelType[JsonNode], data: Array[Byte]): Try[(Model[JsonNode], JsonNode)] = {
+    modelType.codec.invert(data) match {
+      case Success(m) =>
+        Success(m -> modelType.storeCodec(m))
+      case Failure(cause) =>
+        Try { throw new ModelStore.InvalidModelException(null, cause) }
+    }
+  }
+
+  private def storeAsJson(name: String, modelType: String, model: JsonNode): Future[Unit] = {
+    val json = toJsonNode(Map(
+      "modelType" -> toJsonNode(modelType),
+      "model" -> model))
+    store.put(name -> Some(json))
+  }
+
+  def put(name: String, data: Array[Byte]): Future[Model[JsonNode]] = {
+    val parseResult: List[(String, Model[JsonNode], JsonNode)] = modelTypes
+      .map { case (typeName, modelType) =>
+        tryParse(modelType, data).map { case (model, jsonModel) =>
+          (typeName, model, jsonModel)
+        }
+      }
+      .collect { case Success(triplet) => triplet } (collection.breakOut)
+
+    parseResult match {
+      case Nil =>
+        // No model types matched.
+        Future { throw new ModelStore.InvalidModelException("could not match model with any model type", null) }
+      case (typeName, model, jsonModel) :: Nil =>
+        // The good case: exactly 1 model type matched.
+        storeAsJson(name, typeName, jsonModel).map { _ => model }
+      case results =>
+        // More than 1 model type matched.
+        val modelTypes = results.map(_._1).mkString(", ")
+        Future { throw new ModelStore.InvalidModelException("model matches multiple model types: $modelTypes", null) }
+    }
+  }
+
   /**
    * Associate the model with type `modelTypeName` to the given name.
    */
   def put(name: String, modelTypeName: String, data: Array[Byte]): Future[Model[JsonNode]] =
     modelTypes.get(modelTypeName) match {
       case Some(modelType) =>
-        val parsedModel: Try[modelType.JsonModel] = modelType.codec.invert(data) match {
-          case Success(m) => Success(m: modelType.JsonModel)
-          case Failure(cause) =>
-            Try { throw new ModelStore.InvalidModelException(null, cause) }
-        }
-
         for {
-          model <- Future.const(parsedModel.toTwitterTry)
-          json   = toJsonNode(Map(
-                     "modelType" -> toJsonNode(modelTypeName),
-                     "model" -> modelType.storeCodec(model)))
-          _     <- store.put(name -> Some(json))
+          (model, jsonModel) <- Future.const(tryParse(modelType, data).toTwitterTry)
+          _                  <- storeAsJson(name, modelTypeName, jsonModel)
         } yield {
           model
         }

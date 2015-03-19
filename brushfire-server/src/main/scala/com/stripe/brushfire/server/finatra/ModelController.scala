@@ -47,10 +47,14 @@ class ModelController(store: ModelStore[JsonNode]) extends Controller {
   post("/model/") { request =>
     val response = for {
       name      <- request.multiParams.get("name").map(_.value)
-      modelType <- request.multiParams.get("modelType").map(_.value)
+      modelType  = request.multiParams.get("modelType").map(_.value)
       data      <- request.multiParams.get("model").map(_.data)
     } yield {
-      store.put(name, modelType, data).transform {
+      val result = modelType match {
+        case Some(modelTypeName) => store.put(name, modelTypeName, data)
+        case None => store.put(name, data)
+      }
+      result.transform {
         case Return(model) =>
           redirect(s"/model/$name").toFuture
         case Throw(e: ModelStore.MissingModelTypeException) =>
