@@ -40,6 +40,10 @@ class ModelController(store: ModelStore[JsonNode]) extends Controller {
           .body(score.toString)
           .contentType("application/json")
       }
+    }.recover { case (ex: InvalidFeatureException) =>
+      render
+        .body(s"error parsing features: ${ex.message}")
+        .status(400)
     }
   }
 

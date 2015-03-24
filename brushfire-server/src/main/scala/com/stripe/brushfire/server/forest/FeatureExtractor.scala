@@ -38,9 +38,12 @@ trait FeatureExtractor[K, V] { self =>
             row <- f(params)
             kvs <- Try.sequence(for {
                      (k, v) <- row
-                     k1     <- onFailure(inj.invert(k))
+                     k1     <- onFailure(k, inj.invert(k))
                    } yield {
                      k1.map(_ -> v)
+                       .recoverWith { case cause =>
+                         new InvalidFeatureException(s"could not map key: ${k}", cause)
+                       }
                    })
           } yield kvs.toMap
         }
@@ -63,6 +66,9 @@ trait FeatureExtractor[K, V] { self =>
                      v1     <- onFailure(inj.invert(v))
                    } yield {
                      v1.map(k -> _)
+                       .recoverWith { case cause =>
+                         new InvalidFeatureException(s"could not map value: ${v}", cause)
+                       }
                    })
           } yield kvs.toMap
         }
@@ -158,7 +164,11 @@ class DispatchedFeatureExtractor[K, A, B, C, D, V](prev: FeatureExtractor[K, V],
         value       <- row.get(k)
         dispatched  <- onFailure(parser(value))
       } yield {
-        dispatched.map(k -> _)
+        dispatched
+          .map(k -> _)
+          .recoverWith { case cause =>
+            new InvalidFeatureException(s"could not map value: ${v}", cause)
+          }
       })(collection.breakOut)
 
     { params => initExtractor(params).flatMap(parseDispatched) }

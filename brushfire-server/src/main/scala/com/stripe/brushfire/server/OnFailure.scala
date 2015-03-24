@@ -4,6 +4,11 @@ package server
 import scala.util.Try
 
 /**
+ * An `Exception` for failing features.
+ */
+class InvalidFeatureException(message: String = null, cause: Throwable = null) extends Exception(message, cause)
+
+/**
  * A set of strategies to allow the user to decide whether to ignore errors or
  * not.
  */
